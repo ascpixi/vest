@@ -1,6 +1,6 @@
 # 🦺 Vest
 [![image](https://img.shields.io/pypi/v/vest-build.svg)](https://pypi.python.org/pypi/vest-build)
-[![image](https://img.shields.io/pypi/l/vest-build.svg)](https://github.com/ascpixi/vest/blob/main/LICENSE)
+[![image](https://img.shields.io/pypi/l/vest-build.svg)](https://github.com/ascpixi/vest/blob/master/LICENSE)
 [![image](https://img.shields.io/pypi/pyversions/vest-build.svg)](https://pypi.python.org/pypi/vest-build)
 [![Actions status](https://github.com/ascpixi/vest/workflows/CI/badge.svg)](https://github.com/ascpixi/vest/actions)
 
