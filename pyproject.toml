@@ -1,6 +1,6 @@
 [project]
 name = "vest-build"
-version = "0.1.0"
+version = "0.0.1"
 description = "A Python-based build system for bespoke use"
 readme = "README.md"
 authors = [
