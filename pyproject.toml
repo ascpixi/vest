@@ -1,0 +1,23 @@
+[project]
+name = "vest-build"
+version = "0.1.0"
+description = "A Python-based build system for bespoke use"
+readme = "README.md"
+authors = [
+    { name = "ascpixi", email = "ascpixi@proton.me" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "packaging>=26.0",
+    "rich>=15.0.0"
+]
+
+[project.scripts]
+vest = "vest.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "vest"
