@@ -63,10 +63,7 @@ def component(
         # to the directory where the component file is located
         created.base_dir = source.get_directory()
 
-def task(
-    description: str | None = None,
-    run_script: Callable[[Any], list[str]] | None = None
-):
+def task(description: str | None = None):
     """
     Declares a task. Functions marked with this decorator should return the paths to the
     artifacts produced by running this task, in the form of either:
@@ -79,7 +76,6 @@ def task(
     to be set to the base directory when the task is running.
 
     @description: Provides a user-friendly description of the task. Displayed when querying available tasks from the CLI.
-    @run_script: A function that returns the command to run/debug the artifacts produced by the task.
     """
 
     cmpn = require_component("Tasks can only be declared after a component declaration.")
@@ -90,7 +86,6 @@ def task(
             description = description,
             body = fn,
             origin = cmpn,
-            run_script = run_script
         )
 
         if task.origin.cached:
