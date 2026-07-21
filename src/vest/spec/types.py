@@ -83,9 +83,6 @@ class ComponentTask(Generic[TTaskReturn]):
     description: str | None
     "A user-friendly description of the task."
 
-    run_script: Callable[[Any], list[str]] | None
-    "A function that returns the command to run/debug the artifacts produced by the task."
-
     artifacts: TTaskReturn | None = None
     """
     The artifacts the task has produced. Do note that this value does not indicate

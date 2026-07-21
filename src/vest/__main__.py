@@ -17,7 +17,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--task", help = "The task to run.", required = True)
     parser.add_argument("-p", "--path", default = "./build.vest", help = "The path to the target component.")
-    parser.add_argument("-r", "--run", action = "store_true", help = "If set, the 'run_script' of the given task will be invoked.")
     parser.add_argument("--no-cache", action = "store_true", help = "If set, the results of the previous build will be ignored.")
     args, extra_args = parser.parse_known_args()
 
@@ -99,7 +98,7 @@ def main():
             print()
             exit(1)
 
-        # https://github.com/Textualize/rich/blob/master/rich/traceback.py#L234
+        # https://github.com/Textualize/rich/blob/9d8f9a372cc5916fd4781fec207ced7ddac2f08f/rich/traceback.py#L287
         rich.traceback.Traceback.LEXERS[".vest"] = "python"
 
         # Skip the first two frames; which are this script and the component host
@@ -201,21 +200,6 @@ def main():
         print(f"[yellow]      You may delete the 'artifacts' directory if this is the case.[/]")
         print()
         console.print_exception()
-
-    if args.run:
-        if task.run_script == None:
-            log_error_hdr(f"Cannot run/debug the artifacts of [bold]{component.name}:{task.name}[/]")
-            print(f"[red]  ╰─> The component does not define a 'run_script' to invoke.[/]")
-            exit(1)
-
-        run_args = task.run_script(artifacts)
-        assert len(run_args) > 0
-
-        console.show_cursor()
-
-        # Hand off control to the script, so that we don't mess stuff up with any
-        # e.g. signal handlers we may have installed
-        os.execvp(run_args[0], run_args)
 
 if __name__ == "__main__":
     main()
