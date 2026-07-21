@@ -43,7 +43,7 @@ def restore_task_cache(task: ComponentTask):
                 recursive = True,
                 include_hidden = True,
             ):
-                if _check_file_invalidated(path):
+                if _check_file_invalidated(os.path.join(task.origin.base_dir, path)):
                     # A file has a "last modified" date more recent than the time when the
                     # cached invocation was executed.
                     return
