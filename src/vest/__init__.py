@@ -53,3 +53,8 @@ from vest.common.collections import (
     single,
     flatten
 )
+
+from vest.cli import (
+    vest_cli,
+    VestFailure
+)
