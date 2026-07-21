@@ -1,6 +1,6 @@
 [project]
 name = "vest-build"
-version = "0.0.2"
+version = "0.0.3"
 description = "A Python-based build system for bespoke use"
 authors = [{ name = "ascpixi", email = "ascpixi@proton.me" }]
 readme = "README.md"
