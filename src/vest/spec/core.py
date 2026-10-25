@@ -329,12 +329,19 @@ _T5 = TypeVar("_T5", bound = LiteralString)
 _T6 = TypeVar("_T6", bound = LiteralString)
 
 class UnreadBuildParameter(Generic[TLiteral]):
-    value: TLiteral
     name: str
 
-    def __init__(self, value: TLiteral) -> None:
+    def __init__(self, value: str | None, name: str) -> None:
         super().__init__()
-        self.value = value
+        self._value = value
+        self.name = name
+
+    @property
+    def value(self) -> TLiteral:
+        if self._value is None:
+            raise UsageError(f"Missing build parameter: {self.name}")
+
+        return cast(TLiteral, self._value)
 
     # This is a bit of a hack - but is the only way for type checkers to properly detect that we want
     # an array of specific literals, and NOT widen the result to a `str`.
@@ -365,9 +372,14 @@ class UnreadBuildParameter(Generic[TLiteral]):
             # provides a value outside this set, a usage error will be reported.
             ARCH = parameter("-a", "--arch").constrain("amd64", "aarch64").value
         """
-        if self.value not in values:
+        if self._value not in values:
             quoted = [f'"{x}"' for x in values]
-            raise UsageError(f"{self.name} must be either {quoted[0] if len(quoted) <= 0 else (', '.join(quoted[:-1]) + f', or {quoted[-1]}' )}")
+            choices = quoted[0] if len(quoted) <= 1 else ', '.join(quoted[:-1]) + (', or ' if len(quoted) > 2 else ' or ') + quoted[-1]
+
+            if self._value is None:
+                raise UsageError(f"Missing build parameter: {self.name}, which must be either {choices}")
+
+            raise UsageError(f"{self.name} must be either {choices}")
 
         return cast("UnreadBuildParameter[Any]", self)
 
@@ -383,9 +395,6 @@ def parameter(*args: str):
 
     This requires the parameter to be provided. For optional parameters, see `optional_parameter`.
     """
-    for key in args:
-        if key in host().parameters:
-            return UnreadBuildParameter(host().parameters[key])
-        
-    raise UsageError(f"Missing build parameter: {'/'.join(args)}")
+    value = next((host().parameters[key] for key in args if key in host().parameters), None)
+    return UnreadBuildParameter(value, "/".join(args))
 
