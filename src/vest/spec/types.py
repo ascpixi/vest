@@ -1,6 +1,7 @@
 import typing
 from dataclasses import dataclass, field
 from typing import Any, Callable, Generic, Literal, Protocol, TypeVar
+from rich.text import Text
 
 TTaskReturn = TypeVar(
     "TTaskReturn",
@@ -14,8 +15,24 @@ TTaskReturn = TypeVar(
 
 TaskArtifact = None | str | list[str] | dict[str, str | list[str]]
 
+OutputFormatter = Callable[[str], list[Text] | None]
+"""
+Changes how the output of an invoked process is displayed. Called with every line of output - returning `None` keeps
+the line as-is, while an empty list hides it. Otherwise, in interactive terminals, the returned lines are displayed
+instead, as a block set apart by blank lines.
+"""
+
 class BuildError(Exception):
     "Represents an error that occurs on behalf of a component."
+
+class InvocationError(BuildError):
+    "Represents a failure of an external process invoked by a component."
+
+    def __init__(self, filename: str, args: list[str], code: int, first_error: str | None):
+        super().__init__(f"Invocation of {filename} failed with code {code}.")
+        self.command = [filename, *args]
+        self.code = code
+        self.first_error = first_error
 
 class UsageError(Exception):
     "Represents an error that has occured because of a usage error (e.g. unspecified parameters)."

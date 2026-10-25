@@ -12,12 +12,11 @@ import subprocess
 from glob import glob
 from typing import IO, Any, Callable, Concatenate, Generic, LiteralString, ParamSpec, TypeVar, cast, overload
 from rich.text import Text
-from rich.ansi import AnsiDecoder
 
 from vest.common.collections import find, single
-from vest.common.log import log_info, log_warn, log_error, log_get_effective_width
+from vest.common.log import LogLevel, log_command, log_output
 from vest.spec.caching import restore_task_cache
-from vest.spec.types import BuildError, Component, ComponentTask, ExternalRepoResolver, TTaskReturn, UsageError
+from vest.spec.types import Component, ComponentTask, ExternalRepoResolver, InvocationError, OutputFormatter, TTaskReturn, UsageError
 from vest.spec.host import host
 
 TLiteral = TypeVar("TLiteral", bound = str)
@@ -215,7 +214,7 @@ def clean_artifact_root():
     shutil.rmtree(path)
     os.makedirs(path)
 
-def run(filename: str, args: list[str] = [], is_tool = False, stderr_is_stdout = False):
+def run(filename: str, args: list[str] = [], is_tool = False, stderr_is_stdout = False, formatter: OutputFormatter | None = None):
     """
     Runs an executable.
 
@@ -223,13 +222,15 @@ def run(filename: str, args: list[str] = [], is_tool = False, stderr_is_stdout =
     @args: The arguments to pass into the process.
     @is_tool: If `True`, the function will add a `--log-plain` argument, and translate prefixes (e.g. `info: `) to appropriate log types.
     @stderr_is_stdout: If `True`, standard error output will be considered to be regular output.
+    @formatter: Changes how the output of the process is displayed. See `OutputFormatter`.
     """
 
     if is_tool:
         args.append("--log-plain")
 
     filename = filename.strip()
-    
+    log_command(filename, args, host().repo_dir, formatter)
+
     proc = subprocess.Popen(
         [filename, *args],
         stdout=subprocess.PIPE,
@@ -237,66 +238,54 @@ def run(filename: str, args: list[str] = [], is_tool = False, stderr_is_stdout =
         text=True
     )
 
-    def shorten_paths(path: str):
-        return path.replace(host().repo_dir, ".")
+    lock = threading.Lock()
+    errors: list[str] = []
 
-    def forward_stdout(line: str | Text):
-        if isinstance(line, Text):
-            line_raw = line.plain
+    def output(line: str, level: LogLevel):
+        with lock:
+            log_output(line, level)
+
+    def forward(line: str, fallback: LogLevel):
+        line_raw = Text.from_ansi(line).plain
+
+        if re.search(r": *warn(?:ing)?.*:", line_raw, re.IGNORECASE):
+            output(line, "warn")
+        elif re.search(r": *error.*:", line_raw, re.IGNORECASE):
+            errors.append(line_raw)
+            output(line, "error")
         else:
-            line_raw = line
+            output(line, fallback)
 
+    def forward_stdout(line: str):
         if is_tool:
+            line_raw = Text.from_ansi(line).plain
+
             if line_raw.startswith("warn"):
-                log_warn("  " + line_raw)
-                return
+                output(line_raw, "warn")
             elif line_raw.startswith("error"):
-                log_error("  " + line_raw)
+                errors.append(line_raw)
+                output(line_raw, "error")
             elif line_raw.startswith("info"):
-                log_info(f"  [grey58]{line_raw[5:]}[/]")
+                output(line_raw[5:], "info")
 
             return
-        
-        if re.search(r": *warn(?:ing)?.*:", line_raw, re.IGNORECASE):
-            log_warn(Text("  ") + line)
-        elif re.search(r": *error.*:", line_raw, re.IGNORECASE):
-            log_error(Text("  ") + line)
+
+        forward(line, "info")
+
+    def forward_stderr(line: str):
+        if is_tool and Text.from_ansi(line).plain.startswith("error"):
+            errors.append(line[5:])
+            output(line[5:], "error")
         else:
-            log_info(f"  [grey58]{line}[/]")
+            forward(line, "error")
 
-    def forward_stderr(line: str | Text):
-        raw_line = line if isinstance(line, str) else line.plain
-
-        if is_tool and raw_line.startswith("error"):
-            log_error(line[5:])
-        else:
-            log_error(line)
-
-    def stream_reader(stream: IO[str], callback: Callable[[str | Text], bool]):
+    def stream_reader(stream: IO[str], callback: Callable[[str], None]):
         while True:
             line = stream.readline()
             if not line:
                 break
 
-            line = shorten_paths(line).replace("\r", "").replace("\n", "")
-
-            # if there are ANSI codes anywhere in the line, simply forward it
-            # regex source: https://stackoverflow.com/a/14693789/13153269 (CC BY-SA 4.0)
-            if re.match(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", line):
-                line = AnsiDecoder().decode_line(line)
-            else:
-                line = line.strip()
-
-            callback(line)
-
-    args_display = ' '.join(args)
-
-    # Shorten paths so that they're relative to the project root
-    args_display = args_display.replace(host().repo_dir, "[bright_black]<repo>[/]")
-    filename_display = filename.replace(host().repo_dir, "[bright_black]<repo>[/]")
-
-    max_chars = (log_get_effective_width() * 5) # max 5 lines
-    log_info(f"[grey58]> [bold]{filename_display}[/] {args_display[:max_chars] + '...' if len(args_display) > max_chars else args_display}[/]")
+            callback(line.replace("\r", "").replace("\n", ""))
 
     stdout_thread = threading.Thread(target=stream_reader, args=(proc.stdout, forward_stdout))
     stderr_thread = threading.Thread(target=stream_reader, args=(proc.stderr, forward_stderr if not stderr_is_stdout else forward_stdout))
@@ -310,8 +299,7 @@ def run(filename: str, args: list[str] = [], is_tool = False, stderr_is_stdout =
     stderr_thread.join()
 
     if proc.returncode != 0:
-        log_error(f"Invocation of '{filename} {' '.join(args)}' failed with return code {proc.returncode}")
-        raise BuildError(f"Invocation of {filename} failed with code {proc.returncode}.")
+        raise InvocationError(filename, args, proc.returncode, errors[0] if errors else None)
 
 def run_tool(filename: str, args: list[str] = []):
     "Equivalent to `run(filename, args, is_tool = True)`."

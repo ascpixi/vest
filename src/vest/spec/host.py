@@ -7,7 +7,7 @@ import types
 from datetime import date
 from typing import Any, TypedDict
 
-from vest.common.log import log_dedent, log_dependency, log_error_hdr
+from vest.common.log import log_error_hdr, log_print, log_task_cached, log_task_finished, log_task_started
 from vest.spec.types import Component, ComponentTask, TTaskReturn
 
 global_component_host: "StandaloneHost | None" = None
@@ -137,11 +137,10 @@ class StandaloneHost:
                 ):
                     self.cache = cache
             except:
-                print()
                 log_error_hdr("Could not load the global build cache for this repository")
-                print("The 'artifacts/buildcache.json' file might be corrupted. It is generally recommended")
-                print("to remove the entire 'artifacts' directory.")
-                print()
+                log_print("The 'artifacts/buildcache.json' file might be corrupted. It is generally recommended")
+                log_print("to remove the entire 'artifacts' directory.")
+                log_print()
                 raise
 
     def eval_component(self, path: str) -> Component:
@@ -188,7 +187,7 @@ class StandaloneHost:
         "Runs a task if it is not marked as up-to-date."
 
         if task.up_to_date:
-            log_dependency(f"{task.origin.name}:{task.name}", True)
+            log_task_cached(f"{task.origin.name}:{task.name}")
             return task.artifacts # type: ignore
         
         return self.run_task(task)
@@ -202,6 +201,8 @@ class StandaloneHost:
         self.current_task = task
         self.current_component = task.origin
 
+        log_task_started(f"{task.origin.name}:{task.name}")
+
         external_src = self.current_component.source
         if external_src is not None:
             # The component is external; before running any kind of task, we need
@@ -212,9 +213,8 @@ class StandaloneHost:
         prev_cwd = os.getcwd()
         os.chdir(task.origin.base_dir)
 
-        log_dependency(f"{task.origin.name}:{task.name}")
         artifacts = task.body() # Component-defined code
-        log_dedent()
+        log_task_finished()
 
         # Make all relative artifact paths to absolute paths, and verify they exist 
         if isinstance(artifacts, str):
