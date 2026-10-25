@@ -60,6 +60,9 @@ def main():
         )
     except VestFailure:
         exit(1)
+    except KeyboardInterrupt:
+        log_error_hdr("Interrupted")
+        exit(130)
 
 if __name__ == "__main__":
     main()
